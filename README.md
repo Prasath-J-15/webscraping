@@ -17,9 +17,10 @@ Real recruiting-platform / job-board scraping code is client work and isn't mine
 | Domain → crawler dispatch via a registry dict (no if/elif chains) | `dispatcher/crawler_dispatcher.py` |
 | Abstract crawler interface with an opt-out for self-managed rendering | `crawlers/base_crawler.py` |
 | Running Playwright under a web framework whose event loop can't spawn subprocesses | `core/browser.py` |
-| "Simple" pattern — orchestrator pre-renders, crawler just parses | `crawlers/books_crawler.py` |
-| "Click-through" pattern — crawler owns pagination + a batched, browser-restarting detail-page crawl | `crawlers/quotes_authors_crawler.py`, `crawlers/click_through_base.py` |
-| Streaming results out mid-crawl instead of buffering everything in memory | `crawlers/quotes_authors_crawler.py::stream_extract` |
+| "Hybrid" pattern — orchestrator pre-renders page one, crawler then owns its own click-through phase | `crawlers/books_crawler.py` |
+| "Fully self-managed" pattern — crawler owns pagination *and* the detail-page crawl | `crawlers/quotes_authors_crawler.py`, `crawlers/click_through_base.py` |
+| Streaming results out mid-crawl instead of buffering everything in memory (both crawlers) | `crawlers/books_crawler.py::stream_extract`, `crawlers/quotes_authors_crawler.py::stream_extract` |
+| Scoping Crawl4AI to just the freeform-prose element via `css_selector`, leaving structured fields to BeautifulSoup | `crawlers/books_crawler.py::_extract_book` |
 | Generic any-URL scraping (no dispatch) with HTML→Markdown via Crawl4AI | `services/scrape_service.py` |
 | Idempotent upsert keyed by `md5(url)`, preserving `createdAt` across re-crawls | `db/elasticsearch_indexer.py` |
 | Optional dependency — the whole app runs with `indexer=None` if ES isn't configured | `api/dependencies.py` |
@@ -42,8 +43,8 @@ webscraping-learning/
 │   ├── base_crawler.py         # BaseCrawler ABC — extract() / stream_extract()
 │   ├── click_through_base.py   # shared browser-restart + retry + streaming utility
 │   ├── pagination.py           # shared "walk Next-page links, cap collection" helper
-│   ├── books_crawler.py        # simple pattern: pre-rendered HTML, single page
-│   └── quotes_authors_crawler.py  # click-through pattern: paginate + visit N detail pages
+│   ├── books_crawler.py        # hybrid pattern: pre-rendered listing + its own detail-page crawl
+│   └── quotes_authors_crawler.py  # fully self-managed: paginate + visit N detail pages
 ├── db/                      # Elasticsearch client + upsert indexer
 ├── dispatcher/              # DOMAIN_REGISTRY + resolve_crawler()
 ├── models/                  # RawJobData / ScrapedItem dataclasses, Pydantic schemas
@@ -66,22 +67,31 @@ webscraping-learning/
 
 ### Why two crawlers, not thirty
 
-The production system this is modeled on registers ~30 domains. Two is enough to prove out every non-trivial code path (both branches of `requires_prerendered_html()`, the streaming queue bridge, browser-restart batching) without thirty near-duplicate files. Adding an eleventh, twelfth, thirtieth crawler is what the `DOMAIN_REGISTRY` + `BaseCrawler` split is *for* — see "Adding a new crawler" below.
+The production system this is modeled on registers ~30 domains. Two is enough to prove out every non-trivial code path (both branches of `requires_prerendered_html()`, the streaming queue bridge, browser-restart batching, scoped Crawl4AI extraction) without thirty near-duplicate files. Adding an eleventh, twelfth, thirtieth crawler is what the `DOMAIN_REGISTRY` + `BaseCrawler` split is *for* — see "Adding a new crawler" below.
 
 ---
 
 ## The two crawlers
 
-### `BooksCatalogCrawler` — books.toscrape.com
+Both crawlers now use Crawl4AI and both stream results via the same `asyncio.Queue` bridge — the deliberate difference between them is *who owns page-one rendering*.
 
-`requires_prerendered_html()` returns `True` (the default). `ExtractionService` renders the page once with Playwright and hands the crawler finished HTML; `extract()` just parses it with BeautifulSoup and returns one `RawJobData` per book on the page. No second browser session, no Crawl4AI — the catalog page already exposes clean, structured fields (title, price, rating, availability), so running it through an HTML→Markdown pipeline built for messy freeform pages would be pure overhead.
+### `BooksCatalogCrawler` — books.toscrape.com (hybrid)
 
-### `QuotesAuthorsCrawler` — quotes.toscrape.com
+`requires_prerendered_html()` returns `True` — `ExtractionService` renders the listing page once with Playwright and hands the crawler finished HTML for free. From there the crawler runs its own two-phase crawl, same shape as `QuotesAuthorsCrawler` below:
+
+1. **Collect** (`_collect_book_urls`, pure/no I/O): parses the already-rendered listing page's book cards for each book's detail-page URL, capped by `TEST_MODE_JOB_LIMIT`.
+2. **Visit** (`run_pages_with_restart`): visits each book's detail page in batches, restarting Chromium between batches. For each page, structured fields (title, price, availability, rating) are parsed directly with BeautifulSoup, and Crawl4AI — scoped via `css_selector="#product_description ~ p"` — converts *only* the freeform "Product Description" paragraph to Markdown, skipping the product-info table and page chrome entirely. Results stream out through the queue exactly like the author bios below.
+
+### `QuotesAuthorsCrawler` — quotes.toscrape.com (fully self-managed)
 
 `requires_prerendered_html()` returns `False` — this crawler manages its own Playwright session end-to-end, in two phases:
 
 1. **Collect** (`_collect_author_urls_in_thread`): walks `/page/N/` pagination via `crawlers/pagination.py`, gathering every unique author bio URL referenced by a quote's "(about)" link. Pagination is always followed to completion; only *collection* stops once `TEST_MODE_JOB_LIMIT` is hit.
-2. **Visit** (`run_pages_with_restart`, from `crawlers/click_through_base.py`): visits each author URL in batches of `BROWSER_RESTART_AFTER_PAGES`, restarting Chromium between batches. Each batch's `(url, html)` pairs go through Crawl4AI (`AsyncHTTPCrawlerStrategy` + a `raw:` pseudo-URL, so no second browser is spawned) to convert the bio into Markdown, then get pushed onto an `asyncio.Queue` via `loop.call_soon_threadsafe` so `ExtractionService` can index each author as soon as it's ready — instead of waiting for the entire crawl to finish.
+2. **Visit** (`run_pages_with_restart`, from `crawlers/click_through_base.py`): visits each author URL in batches of `BROWSER_RESTART_AFTER_PAGES`, restarting Chromium between batches. Each batch's `(url, html)` pairs go through Crawl4AI (`AsyncHTTPCrawlerStrategy` + a `raw:` pseudo-URL, so no second browser is spawned) to convert the whole bio into Markdown, then get pushed onto an `asyncio.Queue` via `loop.call_soon_threadsafe` so `ExtractionService` can index each author as soon as it's ready — instead of waiting for the entire crawl to finish.
+
+### Why streaming matters here
+
+`run_pages_with_restart` never holds more than one batch's worth of `(url, html)` pairs in memory: each batch's raw HTML is converted, pushed onto the queue, then explicitly freed (`del chunk; gc.collect()`) before the next batch's browser session even opens. `ExtractionService` drains that queue one item at a time — indexing (or, for the batch runner, writing to disk) as each item arrives rather than after the whole crawl finishes. For a two-book demo this is invisible; at the batch runner's actual production scale it's the difference between flat memory usage and a multi-GB accumulation that gets OOM-killed halfway through a long crawl.
 
 This is the pattern that matters most in an interview: it's the difference between "I called `requests.get` in a loop" and understanding why a long scraping job needs bounded memory, resumable batching, and a producer/consumer bridge between a worker thread and the async event loop.
 
