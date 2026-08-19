@@ -80,9 +80,6 @@ class BooksCatalogCrawler(BaseCrawler):
                     source_refid=source_refid,
                     source_url=source_url,
                     extracted_content=extracted_content,
-                    extra_field_1=price,
-                    extra_field_2=availability,
-                    extra_field_3=rating,
                 )
             )
 

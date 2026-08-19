@@ -16,9 +16,6 @@ class RawJobData:
     source_url: str
     extracted_content: str
     extracted_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    extra_field_1: str = "NA"  # e.g. price / company name — site-specific
-    extra_field_2: str = "NA"  # e.g. availability / company address
-    extra_field_3: str = "NA"
 
 
 @dataclass
@@ -30,8 +27,5 @@ class ScrapedItem:
     domain: str
     extracted_content: str
     internal_refid: int = 0
-    extra_field_1: str = "NA"
-    extra_field_2: str = "NA"
-    extra_field_3: str = "NA"
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

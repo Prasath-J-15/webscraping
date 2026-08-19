@@ -137,9 +137,6 @@ class QuotesAuthorsCrawler(BaseCrawler):
             source_refid=source_refid,
             source_url=author_url,
             extracted_content=extracted_content,
-            extra_field_1=name,
-            extra_field_2=born_date,
-            extra_field_3=born_location,
         )
 
     async def extract(self, url: str, html_content: Optional[str] = None) -> list[RawJobData]:

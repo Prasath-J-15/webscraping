@@ -50,9 +50,9 @@ async def test_extract_parses_every_book_card():
     first = items[0]
     assert first.source_refid == "a-light-in-the-attic_1000"
     assert first.source_url == "https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html"
-    assert first.extra_field_1 == "£51.77"
-    assert first.extra_field_3 == "Three"
     assert "A Light in the Attic" in first.extracted_content
+    assert "£51.77" in first.extracted_content
+    assert "Three" in first.extracted_content
 
 
 @pytest.mark.asyncio

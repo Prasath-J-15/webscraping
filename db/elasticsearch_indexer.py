@@ -21,9 +21,6 @@ INDEX_MAPPING: dict = {
             "sourceURL": {"type": "keyword"},
             "domain": {"type": "keyword"},
             "extractedContent": {"type": "text"},
-            "extraField1": {"type": "keyword"},
-            "extraField2": {"type": "keyword"},
-            "extraField3": {"type": "keyword"},
             "createdAt": {"type": "date"},
             "updatedAt": {"type": "date"},
         }
@@ -98,9 +95,6 @@ class ElasticsearchIndexer:
 
         update_fields = {
             "extractedContent": item.extracted_content,
-            "extraField1": item.extra_field_1,
-            "extraField2": item.extra_field_2,
-            "extraField3": item.extra_field_3,
             "updatedAt": item.updated_at.isoformat(),
         }
 
