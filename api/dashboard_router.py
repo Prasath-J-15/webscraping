@@ -44,6 +44,7 @@ async def list_domains() -> list[dict]:
             except Exception as exc:
                 logger.warning(f"Domain count failed for {key}: {exc}")
         domains.append({"key": key, "label": DOMAIN_DISPLAY_NAMES.get(key, key), "totalItems": total_items})
+    logger.info(f"Listed {len(domains)} registered domain(s)")
     return domains
 
 
@@ -61,6 +62,7 @@ async def search_items(
     """
     es = get_elasticsearch_client()
     if es is None:
+        logger.info(f"Dashboard search: q={q!r} domain={domain!r} — Elasticsearch not configured, returning empty page")
         return {**_EMPTY_PAGE, "page": page, "size": size}
 
     must: list[dict] = [{"term": {"domain": domain}}] if domain else []
@@ -98,6 +100,7 @@ async def search_items(
         {**hit["_source"], "domainLabel": DOMAIN_DISPLAY_NAMES.get(hit["_source"].get("domain", ""), hit["_source"].get("domain", "NA"))}
         for hit in resp["hits"]["hits"]
     ]
+    logger.info(f"Dashboard search: q={q!r} domain={domain!r} page={page} -> {total} total result(s), {len(results)} returned")
     return {"total": total, "page": page, "size": size, "results": results}
 
 
@@ -144,6 +147,10 @@ async def report_today() -> dict:
             total_new_today += new_today
             total_ingested_today += ingested_today
 
+    logger.info(
+        f"Today's report: {len(rows)} domain(s) with items, "
+        f"{total_items} total item(s), {total_new_today} new today, {total_ingested_today} ingested today"
+    )
     return {
         "rows": rows,
         "totalItems": total_items,
