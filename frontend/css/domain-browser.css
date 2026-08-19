@@ -1,23 +1,27 @@
 .domain-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
 }
 
 .domain-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: var(--radius-lg);
   padding: 18px;
   cursor: pointer;
-  box-shadow: var(--shadow);
-  transition: transform 0.1s ease, border-color 0.1s ease;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
 }
 
 .domain-card:hover {
   transform: translateY(-2px);
   border-color: var(--primary);
+  box-shadow: var(--shadow-md);
 }
 
 .domain-card.empty {
@@ -28,37 +32,82 @@
 .domain-card.empty:hover {
   transform: none;
   border-color: var(--border);
+  box-shadow: var(--shadow-sm);
+}
+
+.domain-card-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.domain-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md);
+  background: var(--primary-soft);
+  color: var(--primary-soft-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
 }
 
 .domain-card h3 {
-  margin: 0 0 6px;
-  font-size: 1rem;
+  margin: 0;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.3;
 }
 
 .domain-card .domain-key {
-  color: var(--text-muted);
-  font-size: 0.78rem;
-  margin-bottom: 10px;
+  color: var(--text-faint);
+  font-size: 0.76rem;
+}
+
+.domain-card-footer {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
 }
 
 .domain-card .domain-count {
-  font-size: 1.4rem;
+  font-size: 1.3rem;
   font-weight: 700;
-  color: var(--primary);
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
 .domain-card .domain-count-label {
   font-size: 0.72rem;
   color: var(--text-muted);
   text-transform: uppercase;
+  letter-spacing: 0.03em;
 }
 
 .back-link {
-  display: inline-block;
-  margin-bottom: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
   color: var(--primary);
   cursor: pointer;
   font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.back-link:hover {
+  text-decoration: underline;
+}
+
+#jobs-heading {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin: 0 0 14px;
 }
 
 #jobs-view {

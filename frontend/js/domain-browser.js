@@ -26,12 +26,20 @@ async function loadGrid() {
     els.domainGrid.innerHTML = domains
       .map((d) => {
         const empty = d.totalItems === 0;
+        const initial = (d.label || d.key || "?").trim().charAt(0).toUpperCase();
         return `
           <div class="domain-card ${empty ? "empty" : ""}" data-key="${escapeHtml(d.key)}" data-empty="${empty}">
-            <h3>${escapeHtml(d.label)}</h3>
-            <div class="domain-key">${escapeHtml(d.key)}</div>
-            <div class="domain-count">${d.totalItems}</div>
-            <div class="domain-count-label">Items indexed</div>
+            <div class="domain-card-top">
+              <div class="domain-avatar">${escapeHtml(initial)}</div>
+              <div>
+                <h3>${escapeHtml(d.label)}</h3>
+                <div class="domain-key">${escapeHtml(d.key)}</div>
+              </div>
+            </div>
+            <div class="domain-card-footer">
+              <span class="domain-count">${d.totalItems}</span>
+              <span class="domain-count-label">items indexed</span>
+            </div>
           </div>`;
       })
       .join("");
