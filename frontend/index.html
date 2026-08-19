@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ScrapeFlow — Search</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>ScrapeFlow</h1>
+    <nav>
+      <a href="/" class="active">Search</a>
+      <a href="/domain-browser.html">Browse Domains</a>
+      <button class="report-btn" id="report-btn" type="button">Today's Report</button>
+    </nav>
+  </header>
+
+  <main>
+    <div class="search-bar">
+      <input type="text" id="q" placeholder="Search extracted content or item ID...">
+      <select id="domain-filter" aria-label="Filter by domain">
+        <option value="">All domains</option>
+      </select>
+      <button id="search-btn" type="button">Search</button>
+      <button id="clear-btn" type="button" class="ghost-btn">Clear</button>
+    </div>
+
+    <div class="status-line" id="status-line"></div>
+    <div id="results-container"></div>
+    <div class="pagination" id="pagination" style="display:none">
+      <button id="prev-btn" type="button">&larr; Prev</button>
+      <span id="page-label"></span>
+      <button id="next-btn" type="button">Next &rarr;</button>
+    </div>
+  </main>
+
+  <div class="modal-overlay" id="report-overlay">
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="report-date-title">Today's Report</h2>
+        <button class="modal-close" id="report-close" type="button">&times;</button>
+      </div>
+      <div class="report-summary" id="report-summary"></div>
+      <table class="report-table">
+        <thead>
+          <tr><th>Domain</th><th>New Today</th><th>Ingested Today</th><th>Total</th></tr>
+        </thead>
+        <tbody id="report-rows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script src="js/common.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

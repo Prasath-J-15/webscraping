@@ -1,0 +1,70 @@
+.domain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.domain-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 18px;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.1s ease, border-color 0.1s ease;
+}
+
+.domain-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--primary);
+}
+
+.domain-card.empty {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.domain-card.empty:hover {
+  transform: none;
+  border-color: var(--border);
+}
+
+.domain-card h3 {
+  margin: 0 0 6px;
+  font-size: 1rem;
+}
+
+.domain-card .domain-key {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-bottom: 10px;
+}
+
+.domain-card .domain-count {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--primary);
+}
+
+.domain-card .domain-count-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 14px;
+  color: var(--primary);
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+
+#jobs-view {
+  display: none;
+}
+
+#jobs-view.open {
+  display: block;
+}

@@ -2,7 +2,9 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 
+from api.dashboard_router import router as dashboard_router
 from api.routers import router
 from core.exceptions import (
     ExtractionError,
@@ -30,10 +32,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 
 app = FastAPI(
-    title="Web Scraping Learning Project",
+    title="ScrapeFlow",
     description=(
-        "Portfolio demo of a FastAPI + Playwright + Crawl4AI + Elasticsearch "
-        "scraping pipeline, crawling public scrape-practice sites."
+        "A content extraction and search platform built on FastAPI, Playwright, "
+        "Crawl4AI, and Elasticsearch — crawling public scrape-practice sites."
     ),
     version="1.0.0",
     lifespan=lifespan,
@@ -44,3 +46,8 @@ app.add_exception_handler(ExtractionError, extraction_error_handler)
 app.add_exception_handler(Exception, generic_error_handler)
 
 app.include_router(router)
+app.include_router(dashboard_router)
+
+# Mounted last: API routes registered above are matched first, this catches
+# everything else and serves the static dashboard (index.html at "/").
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
