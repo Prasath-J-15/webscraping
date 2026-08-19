@@ -52,6 +52,7 @@ async function runSearch() {
       runSearch();
     });
   } catch (err) {
+    console.error("Search request failed", err);
     els.statusLine.classList.add("error-text");
     els.statusLine.textContent = `Search failed: ${err.message}`;
     els.results.innerHTML = "";
