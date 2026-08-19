@@ -1,6 +1,6 @@
-# Web Scraping Learning Project
+# ScrapeFlow
 
-A from-scratch, portfolio-safe rebuild of a production scraping-pipeline architecture I've worked with professionally. It's not derived from any employer's codebase — every line here targets public scrape-practice sites (`books.toscrape.com`, `quotes.toscrape.com`) and was written independently to demonstrate the same engineering patterns: a **FastAPI** service that accepts a URL, dispatches it to a domain-specific crawler, renders it with **Playwright**, converts content to Markdown with **Crawl4AI**, and optionally indexes it into **Elasticsearch**.
+A from-scratch, portfolio-safe rebuild of a production scraping-pipeline architecture I've worked with professionally. It's not derived from any employer's codebase — every line here targets public scrape-practice sites (`books.toscrape.com`, `quotes.toscrape.com`) and was written independently to demonstrate the same engineering patterns: a **FastAPI** service that accepts a URL, dispatches it to a domain-specific crawler, renders it with **Playwright**, converts content to Markdown with **Crawl4AI**, optionally indexes it into **Elasticsearch**, and serves a static search/browse dashboard over the result.
 
 ---
 
@@ -24,6 +24,8 @@ Real recruiting-platform / job-board scraping code is client work and isn't mine
 | Idempotent upsert keyed by `md5(url)`, preserving `createdAt` across re-crawls | `db/elasticsearch_indexer.py` |
 | Optional dependency — the whole app runs with `indexer=None` if ES isn't configured | `api/dependencies.py` |
 | `TEST_MODE` capping collection without truncating pagination | `crawlers/pagination.py` |
+| Read-only search/browse API over the same index, decoupled from the write path | `api/dashboard_router.py` |
+| Static frontend served by FastAPI's `StaticFiles`, mounted after all API routes | `main.py`, `frontend/` |
 
 ---
 
@@ -31,7 +33,10 @@ Real recruiting-platform / job-board scraping code is client work and isn't mine
 
 ```text
 webscraping-learning/
-├── api/                    # FastAPI dependency injection + route definitions
+├── api/
+│   ├── dependencies.py         # FastAPI DI — ExtractionService/ScrapeService wiring
+│   ├── routers.py               # POST /extract, POST /scrape, GET /health
+│   └── dashboard_router.py      # read-only GET /api/dashboard/{domains,search,report/today}
 ├── core/                   # config, logging, exceptions, the Playwright renderer
 ├── crawlers/                
 │   ├── base_crawler.py         # BaseCrawler ABC — extract() / stream_extract()
@@ -47,6 +52,14 @@ webscraping-learning/
 │   ├── scrape_service.py       # generic Playwright -> Crawl4AI -> Markdown, any URL
 │   ├── text_cleaner.py         # Markdown -> plain text normalization
 │   └── batch_runner.py         # standalone script: crawl every registered domain
+├── frontend/                # static dashboard, served via FastAPI StaticFiles
+│   ├── index.html               # Search page
+│   ├── domain-browser.html      # Browse Domains page
+│   ├── css/
+│   └── js/
+│       ├── common.js            # shared table/pagination/report-modal rendering
+│       ├── app.js               # search page logic
+│       └── domain-browser.js    # domain card grid + per-domain jobs view
 ├── tests/
 └── main.py
 ```
@@ -106,7 +119,21 @@ uvicorn main:app --reload
 | `POST /extract` | `{"url": "https://books.toscrape.com/"}` or `{"url": "https://quotes.toscrape.com/"}` — dispatches to the registered crawler |
 | `POST /scrape` | `{"url": "<any url>"}` — generic Playwright + Crawl4AI, no dispatch |
 | `GET /health` | `{"status": "ok", "elasticsearch": "connected"\|"disconnected", ...}` |
+| `GET /` | Search dashboard (static, see below) |
+| `GET /domain-browser.html` | Browse Domains page |
 | `GET /docs` | Swagger UI |
+
+### The dashboard
+
+`api/dashboard_router.py` is a **read-only** layer over the same Elasticsearch index the crawlers write to — it never calls `.upsert()`, only `.search()` / `.count()`. In a real deployment this would be its own service reading a shared index (the way a production job board separates the ingestion pipeline from the search UI); it's folded into one app here to keep the demo to a single `uvicorn` process.
+
+| Page | What it does |
+|---|---|
+| `/` — Search | Keyword search (`extractedContent` full-text + `sourceRefid` wildcard) with an optional domain filter, paginated results, a **Clear** button to reset both, and a **Today's Report** modal |
+| `/domain-browser.html` — Browse Domains | Card grid of the registered domains with live item counts; domains with items sort to the top, empty domains are greyed out and disabled; clicking a card drills into that domain's paginated item list |
+| Today's Report (both pages) | `GET /api/dashboard/report/today` — per-domain totals, items indexed today, and items re-indexed (updated) today; domains with zero items are omitted |
+
+Run `python services/batch_runner.py` (or a few `POST /extract` calls) against a real Elasticsearch instance first if you want the dashboard to show actual data — with no ES configured it still renders correctly, just with everything at zero.
 
 ### Run the batch runner
 
