@@ -15,6 +15,7 @@ from core.exceptions import (
 )
 from core.logger import get_logger
 from db.elasticsearch_client import close_elasticsearch, init_elasticsearch
+from db.elasticsearch_indexer import ElasticsearchIndexer
 
 logger = get_logger(__name__)
 
@@ -23,7 +24,12 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Application startup")
     try:
-        await init_elasticsearch()
+        es = await init_elasticsearch()
+        if es is not None:
+            # Ensures the explicit INDEX_MAPPING (e.g. internalRefid as a
+            # keyword UUID) is in place before any request can trigger an
+            # auto-created index with ES's default dynamic mapping instead.
+            await ElasticsearchIndexer(es).ensure_index()
     except Exception as exc:
         logger.error(f"Elasticsearch initialization failed: {exc}", exc_info=True)
     yield

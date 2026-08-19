@@ -28,7 +28,7 @@ class ScrapeRequest(_UrlRequest):
 class _ExtractedContentResponse(BaseModel):
     """Base response payload for a single piece of extracted content."""
 
-    internal_refid: int = Field(..., alias="internalRefid")
+    internal_refid: str = Field(..., alias="internalRefid")
     source_refid: str = Field(..., alias="sourceRefid")
     source_url: str = Field(..., alias="sourceURL")
     domain: str = Field(..., alias="domain")

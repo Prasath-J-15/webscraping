@@ -1,5 +1,6 @@
 import hashlib
-import threading
+import uuid
+from typing import Optional
 
 from elasticsearch import AsyncElasticsearch
 from elasticsearch import BadRequestError, ConflictError, NotFoundError
@@ -16,7 +17,7 @@ INDEX_MAPPING: dict = {
     "mappings": {
         "dynamic": False,
         "properties": {
-            "internalRefid": {"type": "long"},
+            "internalRefid": {"type": "keyword"},
             "sourceRefid": {"type": "keyword"},
             "sourceURL": {"type": "keyword"},
             "domain": {"type": "keyword"},
@@ -33,38 +34,16 @@ class ElasticsearchIndexer:
 
     Same identity contract as the production service this demo mirrors: the
     document `_id` is `md5(sourceURL)`, so re-crawling a URL always updates
-    the same document instead of creating a duplicate. `internalRefid` and
-    `createdAt` are assigned once on first insert and never overwritten.
+    the same document instead of creating a duplicate. `internalRefid` is a
+    time-ordered UUID (`uuid1`) assigned once on first insert; `createdAt` is
+    likewise assigned once — neither is ever overwritten on a re-crawl.
     """
 
     def __init__(self, client: AsyncElasticsearch) -> None:
         self.client = client
-        self._counter: int = 0
-        self._counter_lock = threading.Lock()
-
-    def next_refid(self) -> int:
-        with self._counter_lock:
-            self._counter += 1
-            return self._counter
-
-    async def _load_counter(self) -> None:
-        """Seed the in-memory counter from max(internalRefid) already in the index."""
-        try:
-            resp = await self.client.search(
-                index=settings.index_name,
-                body={"size": 0, "aggs": {"max_refid": {"max": {"field": "internalRefid"}}}},
-            )
-            max_val = resp["aggregations"]["max_refid"]["value"]
-            with self._counter_lock:
-                self._counter = int(max_val) if max_val is not None else 0
-            logger.info(f"internalRefid counter seeded at {self._counter}")
-        except Exception as exc:
-            logger.warning(f"Could not read max internalRefid — starting from 0: {exc}")
-            with self._counter_lock:
-                self._counter = 0
 
     async def ensure_index(self) -> None:
-        """Create the index if missing, then seed the refid counter.
+        """Create the index if it does not already exist.
 
         Uses create-and-ignore instead of exists+create — `indices.exists`
         (a HEAD request) returns inconsistent status codes across some ES
@@ -79,16 +58,16 @@ class ElasticsearchIndexer:
                 pass
             else:
                 raise
-        await self._load_counter()
 
-    async def upsert(self, item: ScrapedItem) -> int:
+    async def upsert(self, item: ScrapedItem) -> Optional[str]:
         """Insert or update a document.
 
-        New document — a refid is assigned via next_refid() just before the
-        create call (so a re-crawl of an already-indexed URL never wastes a
-        counter value), full document written, returns the assigned refid.
-        Existing document — only content + updatedAt are overwritten;
-        internalRefid/createdAt are preserved; returns 0.
+        New document — a fresh `uuid1` is assigned as `internalRefid`, the
+        full document is created, and that id is returned so the caller can
+        stamp it onto the response. Existing document — only
+        `extractedContent` and `updatedAt` are overwritten; `internalRefid`/
+        `createdAt` are left untouched in the stored document, and this
+        returns `None` (the caller keeps whatever id it already had).
         """
         index = settings.index_name
         doc_id = hashlib.md5(item.source_url.encode()).hexdigest()
@@ -103,10 +82,10 @@ class ElasticsearchIndexer:
                 try:
                     await self.client.update(index=index, id=doc_id, doc=update_fields)
                     logger.info(f"Updated item '{item.source_refid}' from '{item.domain}'")
-                    return 0
+                    return None
 
                 except NotFoundError:
-                    internal_refid = self.next_refid()
+                    internal_refid = str(uuid.uuid1())
                     try:
                         await self.client.create(
                             index=index,
@@ -128,11 +107,11 @@ class ElasticsearchIndexer:
                         # attempt and our create attempt. Fall back to update.
                         await self.client.update(index=index, id=doc_id, doc=update_fields)
                         logger.info(f"Race-condition update for '{item.source_refid}' from '{item.domain}'")
-                        return 0
+                        return None
 
                 except ConflictError:
                     logger.warning(f"Conflict on document '{doc_id}'; skipping.")
-                    return 0
+                    return None
 
             except ESConnectionError as exc:
                 if conn_attempt == 0:
@@ -143,4 +122,4 @@ class ElasticsearchIndexer:
                     logger.error(f"ES connection error after retry for '{doc_id}': {exc}", exc_info=True)
                     raise IndexingError(f"Failed to index document into '{index}' after retry: {exc}") from exc
 
-        return 0
+        return None

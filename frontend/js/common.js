@@ -32,7 +32,7 @@ function renderResultsTable(container, results) {
       const preview = escapeHtml(item.extractedContent || "NA");
       return `
         <tr>
-          <td><a href="${escapeHtml(item.sourceURL)}" target="_blank" rel="noopener">${escapeHtml(item.sourceRefid || "NA")}</a></td>
+          <td><a href="${escapeHtml(item.sourceURL)}" target="_blank" rel="noopener">${escapeHtml(item.internalRefid || "NA")}</a></td>
           <td><span class="badge">${escapeHtml(item.domainLabel || item.domain || "NA")}</span></td>
           <td class="content-cell">
             <div class="content-preview">${preview}</div>

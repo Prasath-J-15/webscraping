@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime, timezone
 from unittest.mock import AsyncMock
 
@@ -13,7 +14,7 @@ _NOW = datetime.now(timezone.utc)
 
 def _sample_job_response() -> JobContentResponse:
     return JobContentResponse(
-        internalRefid=1,
+        internalRefid=str(uuid.uuid1()),
         sourceRefid="a-light-in-the-attic_1000",
         sourceURL="https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html",
         domain="books.toscrape.com",
@@ -26,7 +27,7 @@ def _sample_job_response() -> JobContentResponse:
 
 def _sample_scrape_response() -> ScrapeResponse:
     return ScrapeResponse(
-        internalRefid=0,
+        internalRefid=str(uuid.uuid1()),
         sourceRefid="NA",
         sourceURL="https://quotes.toscrape.com/js/",
         domain="quotes.toscrape.com",

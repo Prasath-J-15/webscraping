@@ -29,6 +29,13 @@ async function loadDomains() {
   }
 }
 
+function showIdleState() {
+  els.statusLine.classList.remove("error-text");
+  els.statusLine.textContent = "";
+  els.results.innerHTML = "";
+  els.pagination.style.display = "none";
+}
+
 async function runSearch() {
   els.statusLine.classList.remove("error-text");
   els.statusLine.textContent = "Searching...";
@@ -52,15 +59,21 @@ async function runSearch() {
   }
 }
 
-els.searchBtn.addEventListener("click", () => {
+function requestSearch() {
+  if (!els.q.value.trim()) {
+    els.statusLine.classList.remove("error-text");
+    els.statusLine.textContent = "Please enter a keyword.";
+    els.results.innerHTML = "";
+    els.pagination.style.display = "none";
+    return;
+  }
   state.page = 1;
   runSearch();
-});
+}
+
+els.searchBtn.addEventListener("click", requestSearch);
 els.q.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") {
-    state.page = 1;
-    runSearch();
-  }
+  if (e.key === "Enter") requestSearch();
 });
 els.domainFilter.addEventListener("change", () => {
   state.page = 1;
@@ -70,9 +83,9 @@ els.clearBtn.addEventListener("click", () => {
   els.q.value = "";
   els.domainFilter.value = "";
   state.page = 1;
-  runSearch();
+  showIdleState();
 });
 
 loadDomains();
-runSearch();
+showIdleState();
 wireReportModal();
