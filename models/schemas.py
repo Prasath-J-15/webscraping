@@ -33,9 +33,6 @@ class _ExtractedContentResponse(BaseModel):
     source_url: str = Field(..., alias="sourceURL")
     domain: str = Field(..., alias="domain")
     extracted_content: str = Field(..., alias="extractedContent")
-    extra_field_1: str = Field("NA", alias="extraField1")
-    extra_field_2: str = Field("NA", alias="extraField2")
-    extra_field_3: str = Field("NA", alias="extraField3")
     created_at: datetime = Field(..., alias="createdAt")
     updated_at: datetime = Field(..., alias="updatedAt")
     indexed: bool = False
