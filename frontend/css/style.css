@@ -93,25 +93,6 @@ main {
   font-size: 0.95rem;
 }
 
-.search-bar select {
-  padding: 10px 34px 10px 14px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
-  font-size: 0.95rem;
-  background-color: var(--surface);
-  min-width: 170px;
-  appearance: none;
-  -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  cursor: pointer;
-}
-
-.search-bar select:hover {
-  border-color: var(--primary);
-}
-
 .search-bar button {
   padding: 10px 18px;
   border-radius: var(--radius);

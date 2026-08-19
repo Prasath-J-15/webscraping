@@ -1,10 +1,11 @@
-// Job Search Dashboard: keyword + domain search, pagination, Today's Report.
+// Search Dashboard: keyword search, pagination, Today's Report.
+// Domain-based browsing lives on domain-browser.html instead — this page is
+// keyword-only.
 
 const state = { page: 1, size: 10 };
 
 const els = {
   q: document.getElementById("q"),
-  domainFilter: document.getElementById("domain-filter"),
   searchBtn: document.getElementById("search-btn"),
   statusLine: document.getElementById("status-line"),
   results: document.getElementById("results-container"),
@@ -14,20 +15,6 @@ const els = {
   pageLabel: document.getElementById("page-label"),
   clearBtn: document.getElementById("clear-btn"),
 };
-
-async function loadDomains() {
-  try {
-    const domains = await fetchJSON("/api/dashboard/domains");
-    for (const d of domains) {
-      const opt = document.createElement("option");
-      opt.value = d.key;
-      opt.textContent = d.label;
-      els.domainFilter.appendChild(opt);
-    }
-  } catch (err) {
-    console.error("Failed to load domains", err);
-  }
-}
 
 function showIdleState() {
   els.statusLine.classList.remove("error-text");
@@ -39,9 +26,7 @@ function showIdleState() {
 async function runSearch() {
   els.statusLine.classList.remove("error-text");
   els.statusLine.textContent = "Searching...";
-  const params = new URLSearchParams({ page: state.page, size: state.size });
-  if (els.q.value.trim()) params.set("q", els.q.value.trim());
-  if (els.domainFilter.value) params.set("domain", els.domainFilter.value);
+  const params = new URLSearchParams({ page: state.page, size: state.size, q: els.q.value.trim() });
 
   try {
     const data = await fetchJSON(`/api/dashboard/search?${params}`);
@@ -76,15 +61,11 @@ els.searchBtn.addEventListener("click", requestSearch);
 els.q.addEventListener("keydown", (e) => {
   if (e.key === "Enter") requestSearch();
 });
-// Picking a domain alone does nothing yet — it's just held in the filter
-// until Search is actually clicked, same as the keyword requirement above.
 els.clearBtn.addEventListener("click", () => {
   els.q.value = "";
-  els.domainFilter.value = "";
   state.page = 1;
   showIdleState();
 });
 
-loadDomains();
 showIdleState();
 wireReportModal();
