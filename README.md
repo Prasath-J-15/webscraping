@@ -1,0 +1,153 @@
+# Web Scraping Learning Project
+
+A from-scratch, portfolio-safe rebuild of a production scraping-pipeline architecture I've worked with professionally. It's not derived from any employer's codebase — every line here targets public scrape-practice sites (`books.toscrape.com`, `quotes.toscrape.com`) and was written independently to demonstrate the same engineering patterns: a **FastAPI** service that accepts a URL, dispatches it to a domain-specific crawler, renders it with **Playwright**, converts content to Markdown with **Crawl4AI**, and optionally indexes it into **Elasticsearch**.
+
+---
+
+## Why this exists
+
+Real recruiting-platform / job-board scraping code is client work and isn't mine to publish. This project exists so the *architecture* — the part that's actually interview-relevant — has a public, runnable home. Everything below is either a direct reimplementation of a generic engineering pattern (retry/restart logic, event-loop bridging, upsert semantics) or built fresh against public target sites.
+
+---
+
+## What it demonstrates
+
+| Pattern | Where |
+|---|---|
+| Domain → crawler dispatch via a registry dict (no if/elif chains) | `dispatcher/crawler_dispatcher.py` |
+| Abstract crawler interface with an opt-out for self-managed rendering | `crawlers/base_crawler.py` |
+| Running Playwright under a web framework whose event loop can't spawn subprocesses | `core/browser.py` |
+| "Simple" pattern — orchestrator pre-renders, crawler just parses | `crawlers/books_crawler.py` |
+| "Click-through" pattern — crawler owns pagination + a batched, browser-restarting detail-page crawl | `crawlers/quotes_authors_crawler.py`, `crawlers/click_through_base.py` |
+| Streaming results out mid-crawl instead of buffering everything in memory | `crawlers/quotes_authors_crawler.py::stream_extract` |
+| Generic any-URL scraping (no dispatch) with HTML→Markdown via Crawl4AI | `services/scrape_service.py` |
+| Idempotent upsert keyed by `md5(url)`, preserving `createdAt` across re-crawls | `db/elasticsearch_indexer.py` |
+| Optional dependency — the whole app runs with `indexer=None` if ES isn't configured | `api/dependencies.py` |
+| `TEST_MODE` capping collection without truncating pagination | `crawlers/pagination.py` |
+
+---
+
+## Architecture
+
+```text
+webscraping-learning/
+├── api/                    # FastAPI dependency injection + route definitions
+├── core/                   # config, logging, exceptions, the Playwright renderer
+├── crawlers/                
+│   ├── base_crawler.py         # BaseCrawler ABC — extract() / stream_extract()
+│   ├── click_through_base.py   # shared browser-restart + retry + streaming utility
+│   ├── pagination.py           # shared "walk Next-page links, cap collection" helper
+│   ├── books_crawler.py        # simple pattern: pre-rendered HTML, single page
+│   └── quotes_authors_crawler.py  # click-through pattern: paginate + visit N detail pages
+├── db/                      # Elasticsearch client + upsert indexer
+├── dispatcher/              # DOMAIN_REGISTRY + resolve_crawler()
+├── models/                  # RawJobData / ScrapedItem dataclasses, Pydantic schemas
+├── services/                
+│   ├── extraction_service.py   # orchestrates dispatch -> crawl -> clean -> index
+│   ├── scrape_service.py       # generic Playwright -> Crawl4AI -> Markdown, any URL
+│   ├── text_cleaner.py         # Markdown -> plain text normalization
+│   └── batch_runner.py         # standalone script: crawl every registered domain
+├── tests/
+└── main.py
+```
+
+### Why two crawlers, not thirty
+
+The production system this is modeled on registers ~30 domains. Two is enough to prove out every non-trivial code path (both branches of `requires_prerendered_html()`, the streaming queue bridge, browser-restart batching) without thirty near-duplicate files. Adding an eleventh, twelfth, thirtieth crawler is what the `DOMAIN_REGISTRY` + `BaseCrawler` split is *for* — see "Adding a new crawler" below.
+
+---
+
+## The two crawlers
+
+### `BooksCatalogCrawler` — books.toscrape.com
+
+`requires_prerendered_html()` returns `True` (the default). `ExtractionService` renders the page once with Playwright and hands the crawler finished HTML; `extract()` just parses it with BeautifulSoup and returns one `RawJobData` per book on the page. No second browser session, no Crawl4AI — the catalog page already exposes clean, structured fields (title, price, rating, availability), so running it through an HTML→Markdown pipeline built for messy freeform pages would be pure overhead.
+
+### `QuotesAuthorsCrawler` — quotes.toscrape.com
+
+`requires_prerendered_html()` returns `False` — this crawler manages its own Playwright session end-to-end, in two phases:
+
+1. **Collect** (`_collect_author_urls_in_thread`): walks `/page/N/` pagination via `crawlers/pagination.py`, gathering every unique author bio URL referenced by a quote's "(about)" link. Pagination is always followed to completion; only *collection* stops once `TEST_MODE_JOB_LIMIT` is hit.
+2. **Visit** (`run_pages_with_restart`, from `crawlers/click_through_base.py`): visits each author URL in batches of `BROWSER_RESTART_AFTER_PAGES`, restarting Chromium between batches. Each batch's `(url, html)` pairs go through Crawl4AI (`AsyncHTTPCrawlerStrategy` + a `raw:` pseudo-URL, so no second browser is spawned) to convert the bio into Markdown, then get pushed onto an `asyncio.Queue` via `loop.call_soon_threadsafe` so `ExtractionService` can index each author as soon as it's ready — instead of waiting for the entire crawl to finish.
+
+This is the pattern that matters most in an interview: it's the difference between "I called `requests.get` in a loop" and understanding why a long scraping job needs bounded memory, resumable batching, and a producer/consumer bridge between a worker thread and the async event loop.
+
+---
+
+## Why Playwright runs in its own thread with a fresh event loop
+
+FastAPI under Uvicorn defaults to a `SelectorEventLoop`. On Windows, `SelectorEventLoop` cannot spawn subprocesses — and Playwright launching Chromium *is* a subprocess spawn. `core/browser.py:render_page_in_thread` (and the equivalent in `click_through_base.py`) is called via `asyncio.to_thread(...)`, and inside that worker thread it creates a brand-new `asyncio.ProactorEventLoop`, which *can* spawn subprocesses, runs the Playwright session on it, and tears it down. FastAPI's own loop never touches Playwright directly.
+
+This is a Windows-hosting-specific problem — on Linux, Uvicorn's default loop can spawn subprocesses fine — but it's a good illustration of understanding *why* an async framework's event loop choice constrains what you can call synchronously inside it, not just copying a workaround.
+
+---
+
+## Getting started
+
+```bash
+python -m venv venv
+venv\Scripts\activate          # Windows
+# source venv/bin/activate     # macOS / Linux
+
+pip install -r requirements.txt
+playwright install chromium
+
+copy .env.example .env         # optional — the app runs fine with ES unset
+```
+
+### Run the API
+
+```bash
+uvicorn main:app --reload
+```
+
+| Endpoint | Description |
+|---|---|
+| `POST /extract` | `{"url": "https://books.toscrape.com/"}` or `{"url": "https://quotes.toscrape.com/"}` — dispatches to the registered crawler |
+| `POST /scrape` | `{"url": "<any url>"}` — generic Playwright + Crawl4AI, no dispatch |
+| `GET /health` | `{"status": "ok", "elasticsearch": "connected"\|"disconnected", ...}` |
+| `GET /docs` | Swagger UI |
+
+### Run the batch runner
+
+```bash
+python services/batch_runner.py
+```
+
+Crawls every URL in `services/batch_runner.py::URLS` sequentially, streaming results to `batch_output/items_<timestamp>.json` and a summary to `batch_output/report_<timestamp>.txt`.
+
+### Run with Elasticsearch (optional)
+
+```bash
+docker compose up -d
+# then set ELASTICSEARCH_HOST=http://localhost:9200 in .env (security is disabled in docker-compose.yml, so username/password are ignored)
+```
+
+Without it, `indexer=None` throughout — extraction and scraping both still work; `indexed: false` just shows up in every response.
+
+### Run the tests
+
+```bash
+pytest
+```
+
+Crawler and text-cleaning tests run against inline HTML fixtures (no live network calls). API tests mock `ExtractionService`/`ScrapeService` via FastAPI's `dependency_overrides`.
+
+---
+
+## Adding a new crawler
+
+1. `crawlers/<site>_crawler.py` extending `BaseCrawler`, implementing `extract()`.
+2. Override `requires_prerendered_html()` → `False` if the crawler needs its own Playwright session (click-through, pagination).
+3. For click-through crawlers: a `_collect_*_urls_in_thread()` helper (optionally via `crawlers/pagination.py`) + `stream_extract()` using the queue-bridge pattern in `QuotesAuthorsCrawler` + `run_pages_with_restart` from `click_through_base.py`.
+4. Register the domain in `dispatcher/crawler_dispatcher.py::DOMAIN_REGISTRY`.
+5. Add the canonical URL to `services/batch_runner.py::URLS`.
+6. Add a test in `tests/test_crawlers/`.
+
+No changes to routing, services, or the indexer required.
+
+---
+
+## Environment variables
+
+See `.env.example`. Elasticsearch settings are the only ones that are genuinely optional — leaving `ELASTICSEARCH_HOST` blank runs the whole app with indexing disabled rather than failing startup.
