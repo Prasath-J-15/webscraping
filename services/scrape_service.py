@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -87,6 +88,7 @@ class ScrapeService:
             source_url=url,
             domain=extract_domain(url),
             extracted_content=cleaned_content,
+            internal_refid=str(uuid.uuid1()),
             created_at=now,
             updated_at=now,
         )
@@ -148,7 +150,12 @@ class ScrapeService:
         if self.indexer is None:
             return False
         try:
-            scraped.internal_refid = await self.indexer.upsert(scraped)
+            # upsert() returns a fresh id only for a brand-new document; for a
+            # re-scraped (already-indexed) URL it returns None and this
+            # response keeps the placeholder id assigned when scraped was built.
+            new_refid = await self.indexer.upsert(scraped)
+            if new_refid:
+                scraped.internal_refid = new_refid
             logger.info(f"Indexed: {scraped.source_url}")
             return True
         except Exception as exc:

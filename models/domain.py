@@ -26,6 +26,6 @@ class ScrapedItem:
     source_url: str
     domain: str
     extracted_content: str
-    internal_refid: int = 0
+    internal_refid: str = ""  # time-ordered UUID (uuid1); assigned by the caller before indexing
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

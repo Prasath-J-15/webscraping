@@ -1,4 +1,5 @@
 import asyncio
+import uuid
 from typing import Awaitable, Callable, Optional
 
 from core.browser import PLAYWRIGHT_TIMEOUT_MS, render_page_in_thread
@@ -73,13 +74,19 @@ class ExtractionService:
                 source_url=raw.source_url,
                 domain=domain,
                 extracted_content=clean_markdown(raw.extracted_content),
+                internal_refid=str(uuid.uuid1()),
                 created_at=raw.extracted_at,
                 updated_at=raw.extracted_at,
             )
             indexed = False
             if self.indexer is not None:
                 try:
-                    item.internal_refid = await self.indexer.upsert(item)
+                    # upsert() returns a fresh id only for a brand-new document;
+                    # for a re-crawled (already-indexed) URL it returns None and
+                    # this response keeps the placeholder id assigned above.
+                    new_refid = await self.indexer.upsert(item)
+                    if new_refid:
+                        item.internal_refid = new_refid
                     indexed = True
                 except Exception as exc:
                     logger.error(f"Indexing failed for {item.source_url}: {exc}", exc_info=True)
