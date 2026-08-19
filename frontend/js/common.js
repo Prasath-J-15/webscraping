@@ -21,6 +21,14 @@ function formatDate(iso) {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString();
 }
 
+// internalRefid is a full uuid1 (e.g. "eef975ad-9bc7-11f1-b2b8-04421a2ea94a") —
+// too long to be a useful glance-able label in a table, so only its first
+// segment is shown; the full id is still available via the title tooltip.
+function shortId(id) {
+  if (!id || id === "NA") return "NA";
+  return id.split("-")[0];
+}
+
 function renderResultsTable(container, results) {
   if (!results.length) {
     container.innerHTML = '<div class="empty-state">No items found.</div>';
@@ -32,7 +40,7 @@ function renderResultsTable(container, results) {
       const preview = escapeHtml(item.extractedContent || "NA");
       return `
         <tr>
-          <td><a href="${escapeHtml(item.sourceURL)}" target="_blank" rel="noopener">${escapeHtml(item.internalRefid || "NA")}</a></td>
+          <td><a href="${escapeHtml(item.sourceURL)}" target="_blank" rel="noopener" title="${escapeHtml(item.internalRefid || "NA")}">${escapeHtml(shortId(item.internalRefid))}</a></td>
           <td><span class="badge">${escapeHtml(item.domainLabel || item.domain || "NA")}</span></td>
           <td class="content-cell">
             <div class="content-preview">${preview}</div>
