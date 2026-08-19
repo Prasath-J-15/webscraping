@@ -76,10 +76,8 @@ els.searchBtn.addEventListener("click", requestSearch);
 els.q.addEventListener("keydown", (e) => {
   if (e.key === "Enter") requestSearch();
 });
-els.domainFilter.addEventListener("change", () => {
-  state.page = 1;
-  runSearch();
-});
+// Picking a domain alone does nothing yet — it's just held in the filter
+// until Search is actually clicked, same as the keyword requirement above.
 els.clearBtn.addEventListener("click", () => {
   els.q.value = "";
   els.domainFilter.value = "";
