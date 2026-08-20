@@ -6,7 +6,11 @@ services:
       - xpack.security.enabled=false
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
     ports:
-      - "9200:9200"
+      # Host-side port only — the app container talks to this service over
+      # Docker's internal network as "elasticsearch:9200" regardless of what
+      # this is mapped to on the host. Remapped off 9200 so this doesn't
+      # clash with a local Elasticsearch already running on the host.
+      - "9201:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
     healthcheck:
