@@ -107,6 +107,29 @@ This is a Windows-hosting-specific problem — on Linux, Uvicorn's default loop 
 
 ## Getting started
 
+Two ways to run this: entirely in Docker (nothing but Docker needed), or locally with a Python virtualenv.
+
+### Option A — Run entirely in Docker (zero setup)
+
+```bash
+docker compose up --build
+```
+
+This builds the app image (Python 3.11-slim + `playwright install --with-deps chromium`, so Chromium and every OS-level library it needs are installed inside the container at build time) and starts it alongside an Elasticsearch container — no local Python, Playwright, or Elasticsearch install required. `app` waits for `elasticsearch` to pass its healthcheck before starting.
+
+| Service | Host port | Notes |
+|---|---|---|
+| `app` | `9000` | Browse to `http://localhost:9000` — not `http://0.0.0.0:9000`. The container binds `0.0.0.0` internally so Docker's port mapping can reach it, but `0.0.0.0` isn't a browsable address from the host. |
+| `elasticsearch` | `9201` | Remapped off the default `9200` so it doesn't clash with an Elasticsearch already running on the host; the `app` container still reaches it internally as `elasticsearch:9200` over Docker's network |
+
+Open `http://localhost:9000/` for the dashboard, or `http://localhost:9000/docs` for Swagger UI.
+
+```bash
+docker compose down          # stop and remove both containers
+```
+
+### Option B — Run locally with a virtualenv
+
 ```bash
 python -m venv venv
 venv\Scripts\activate          # Windows
@@ -153,11 +176,13 @@ python services/batch_runner.py
 
 Crawls every URL in `services/batch_runner.py::URLS` sequentially, streaming results to `batch_output/items_<timestamp>.json` and a summary to `batch_output/report_<timestamp>.txt`.
 
-### Run with Elasticsearch (optional)
+### Run only Elasticsearch in Docker, app locally (optional)
+
+If you're running the app locally (Option B) but still want a real Elasticsearch to index into, without also containerizing the app:
 
 ```bash
-docker compose up -d
-# then set ELASTICSEARCH_HOST=http://localhost:9200 in .env (security is disabled in docker-compose.yml, so username/password are ignored)
+docker compose up -d elasticsearch
+# then set ELASTICSEARCH_HOST=http://localhost:9201 in .env (security is disabled in docker-compose.yml, so username/password are ignored)
 ```
 
 Without it, `indexer=None` throughout — extraction and scraping both still work; `indexed: false` just shows up in every response.
