@@ -9,6 +9,30 @@ services:
       - "9200:9200"
     volumes:
       - es_data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build: .
+    ports:
+      - "9000:9000"
+    environment:
+      # "elasticsearch" resolves via Docker's internal network — not
+      # localhost, since this runs in its own container. Security is
+      # disabled on the ES service above, so the username/password below
+      # are unused placeholders.
+      - ELASTICSEARCH_HOST=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      - ELASTICSEARCH_PASSWORD=changeme
+      - INDEX_NAME=scrapejobs
+      - TEST_MODE=True
+      - TEST_MODE_JOB_LIMIT=5
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
 
 volumes:
   es_data:
